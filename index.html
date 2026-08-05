@@ -311,6 +311,19 @@ body.coach-on > .app, body.coach-on > nav, body.coach-on .tabbar, body.coach-on 
 .co-photo-wrap{ position:relative; display:block; }
 .co-photo-tag{ position:absolute; left:8px; bottom:8px; font-size:11px; padding:4px 9px;
   border-radius:999px; background:rgba(8,14,24,.78); color:#cfe3f7; pointer-events:none; }
+#micFlash{ position:fixed; left:50%; top:14px; transform:translateX(-50%) translateY(-16px);
+  z-index:100000; background:rgba(10,18,30,.92); color:#7fd3a8; font-size:13.5px; font-weight:600;
+  padding:9px 16px; border-radius:999px; border:1px solid rgba(127,211,168,.35);
+  opacity:0; transition:opacity .18s, transform .18s; pointer-events:none; max-width:80vw;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#micFlash.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+.vpick{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.vpick button{ flex:1 1 46%; padding:12px 10px; border-radius:12px; cursor:pointer; font-size:14px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); color:#dbe9f7; }
+.vpick button.sel{ background:#1f8f5f; border-color:#2ecc87; color:#fff; font-weight:700; }
+.vpick button small{ display:block; font-size:11.5px; opacity:.75; margin-top:2px; font-weight:400; }
+.vbar{ height:6px; border-radius:999px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:10px; }
+.vbar i{ display:block; height:100%; background:#2ecc87; width:0; transition:width .2s; }
 #lockScreen{ position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center;
   background:#0b1220; padding:24px; }
 #lockScreen.hidden{ display:none; }
@@ -3454,6 +3467,80 @@ function renderSettings(){
   d6.appendChild(b6);
   v.appendChild(d6);
 
+  // 음성 코치 (8/5 대표) — 미리 뽑아둔 목소리로 코치가 말해준다
+  const vc = el("div","card");
+  const vOn = voiceOn(), vId = voiceId();
+  vc.innerHTML = '<h3>🎧 음성 코치 <span class="pill">' + (vOn ? "켜짐" : "꺼짐") + '</span></h3>' +
+    '<p class="k" style="margin:6px 0 4px">코치가 <b>무게와 횟수를 말로</b> 알려줘요.<br>' +
+    '이어폰을 끼면 <b>폰을 안 봐도</b> 운동할 수 있어요.<br>' +
+    '<span style="opacity:.7">처음 켤 때만 목소리를 받아둬요 (약 20MB). 그 다음부터는 인터넷 없이도 돼요.</span></p>';
+  const vrow = el("div","vpick");
+  Object.entries(VOICES).forEach(function(pair){
+    var id = pair[0], vv = pair[1];
+    const b = el("button", id === vId ? "sel" : "", "");
+    b.innerHTML = vv.label + ' <small>' + vv.tone + '</small>';
+    b.onclick = async function(){
+      localStorage.setItem("jayna_voice_id", id);
+      VP = null; VP_ID = null;
+      renderSettings();
+      toast("목소리를 받는 중이에요…");
+      const okv = await voiceLoad(id, function(p){
+        const bar = document.querySelector("#vBar i"); if(bar) bar.style.width = p + "%";
+      });
+      if(okv){
+        localStorage.setItem("jayna_voice","1");
+        say("go"); renderSettings();
+        toast(vv.label + " 목소리로 바꿨어요 🎧");
+      } else toast("목소리를 받지 못했어요. 인터넷을 확인해주세요");
+    };
+    vrow.appendChild(b);
+  });
+  vc.appendChild(vrow);
+  const vbar = el("div","vbar"); vbar.id = "vBar"; vbar.innerHTML = "<i></i>"; vc.appendChild(vbar);
+  const vb = el("button", vOn ? "btn sec" : "btn green", vOn ? "음성 끄기" : "🎧 음성 코치 켜기");
+  vb.style.marginTop = "10px";
+  vb.onclick = async function(){
+    if(vOn){
+      localStorage.setItem("jayna_voice","0"); _vq = []; _vstop();
+      renderSettings(); toast("음성을 껐어요"); return;
+    }
+    toast("목소리를 받는 중이에요… 잠시만요");
+    const okv = await voiceLoad(voiceId(), function(p){
+      const bar = document.querySelector("#vBar i"); if(bar) bar.style.width = p + "%";
+    });
+    if(okv){
+      localStorage.setItem("jayna_voice","1"); say("go");
+      renderSettings(); toast("음성 코치를 켰어요 🎧");
+    } else toast("받지 못했어요. 인터넷을 확인해주세요");
+  };
+  vc.appendChild(vb);
+  v.appendChild(vc);
+
+  // 마이크 명령 (8/5 대표 — 블루투스 이어폰 끼고 폰 안 보고 운동)
+  if(micSupported()){
+    const mc = el("div","card");
+    const mOn = micOn();
+    mc.innerHTML = '<h3>🎤 말로 넘기기 <span class="pill">' + (mOn ? "켜짐" : "꺼짐") + '</span></h3>' +
+      '<p class="k" style="margin:6px 0 10px">운동하면서 <b>"세트 끝"</b> 하고 말하면 바로 휴식으로 넘어가요.<br>' +
+      '<b>"다음"</b> 다음 운동 · <b>"무겁다 / 가볍다"</b> 무게 조절 · <b>"더 쉴게"</b> 휴식 15초 더<br>' +
+      '<span style="opacity:.7">이어폰 마이크로도 됩니다. 화면이 꺼지면 잠깐 멈출 수 있어요.</span></p>';
+    const mb = el("button", mOn ? "btn sec" : "btn green", mOn ? "마이크 끄기" : "🎤 말로 넘기기 켜기");
+    mb.onclick = async function(){
+      if(mOn){
+        localStorage.setItem("jayna_mic","0"); micStop();
+        renderSettings(); toast("마이크를 껐어요"); return;
+      }
+      try{
+        const st = await navigator.mediaDevices.getUserMedia({audio:true});
+        st.getTracks().forEach(function(t){ t.stop(); });
+        localStorage.setItem("jayna_mic","1"); renderSettings();
+        toast('이제 "세트 끝" 하고 말해보세요 🎤');
+      }catch(e){ toast("마이크 권한이 필요해요"); }
+    };
+    mc.appendChild(mb);
+    v.appendChild(mc);
+  }
+
   // 무릎 보호 (8/4 대표) — 무릎이 약한 사람용
   const kn=el("div","card");
   const kOn = !!P().kneeSafe;
@@ -3640,6 +3727,7 @@ function coachStart(){
   coachRender();
 }
 function coachStop(){
+  try{ _vq=[]; _vstop(); micStop(); }catch(e){}
   if(CO && CO.timer) clearInterval(CO.timer);
   CO = null;
   document.body.classList.remove("coach-on");
@@ -3652,7 +3740,225 @@ function coachSets(){ const e=coachEx(); return e.planSets && e.planSets.length 
 function coachSet(){ return coachSets()[CO.si]; }
 
 /* 1초 타이머 — ready/rest/move 는 카운트다운, work 는 경과시간 */
+
+/* ═══ 음성 코치 (8/5 대표) ═══
+   타입캐스트로 미리 뽑아둔 멘트를 조합해서 말한다.
+   실시간 생성이 아니라 미리 받은 파일 재생이라 끊김이 없고 오프라인에서도 된다.
+   고른 목소리 팩만 내려받아 IndexedDB 에 저장 → 두 번째부터는 바로 씀. */
+const VOICES = {
+  seojin:   { label: "서진",  tone: "밝게", sex: "남" },
+  igyeom:   { label: "이겸",  tone: "밝게", sex: "남" },
+  wonwoo:   { label: "원우",  tone: "밝게", sex: "남" },
+  igyeom_n: { label: "이겸",  tone: "차분",  sex: "남" },
+};
+const VOICE_BASE = "voice/";      // pack_<id>.json
+let VP = null;                    // 현재 로드된 음성팩 {key: base64}
+let VP_ID = null;
+
+function voiceOn(){ return localStorage.getItem("jayna_voice") === "1"; }
+function voiceId(){ return localStorage.getItem("jayna_voice_id") || "seojin"; }
+
+/* ── IndexedDB (음성팩은 커서 localStorage 에 안 들어간다) ── */
+function vdb(){
+  return new Promise((res, rej)=>{
+    const q = indexedDB.open("jayna_voice", 1);
+    q.onupgradeneeded = ()=> q.result.createObjectStore("packs");
+    q.onsuccess = ()=> res(q.result);
+    q.onerror = ()=> rej(q.error);
+  });
+}
+async function vdbGet(id){
+  try{
+    const db = await vdb();
+    return await new Promise(res=>{
+      const r = db.transaction("packs").objectStore("packs").get(id);
+      r.onsuccess = ()=> res(r.result || null);
+      r.onerror = ()=> res(null);
+    });
+  }catch(e){ return null; }
+}
+async function vdbPut(id, data){
+  try{
+    const db = await vdb();
+    await new Promise(res=>{
+      const t = db.transaction("packs", "readwrite");
+      t.objectStore("packs").put(data, id);
+      t.oncomplete = res; t.onerror = res;
+    });
+    return true;
+  }catch(e){ return false; }
+}
+async function vdbDel(id){
+  try{
+    const db = await vdb();
+    await new Promise(res=>{
+      const t = db.transaction("packs", "readwrite");
+      t.objectStore("packs").delete(id);
+      t.oncomplete = res; t.onerror = res;
+    });
+  }catch(e){}
+}
+
+/* ── 음성팩 준비: 저장된 게 있으면 바로, 없으면 내려받기 ── */
+async function voiceLoad(id, onProgress){
+  id = id || voiceId();
+  if(VP && VP_ID === id) return true;
+  let pack = await vdbGet(id);
+  if(!pack){
+    if(onProgress) onProgress(0);
+    try{
+      const r = await fetch(VOICE_BASE + "pack_" + id + ".json");
+      if(!r.ok) return false;
+      // 진행률 표시 (Content-Length 가 있을 때)
+      const total = +(r.headers.get("content-length") || 0);
+      if(total && r.body && onProgress){
+        const rd = r.body.getReader(); const chunks = []; let got = 0;
+        for(;;){
+          const {done, value} = await rd.read();
+          if(done) break;
+          chunks.push(value); got += value.length;
+          onProgress(Math.round(got / total * 100));
+        }
+        pack = JSON.parse(new TextDecoder().decode(
+          chunks.reduce((a,c)=>{ const n=new Uint8Array(a.length+c.length); n.set(a); n.set(c,a.length); return n; }, new Uint8Array())));
+      } else {
+        pack = await r.json();
+      }
+      await vdbPut(id, pack);
+    }catch(e){ console.log("[음성] 내려받기 실패", e); return false; }
+  }
+  VP = pack; VP_ID = id;
+  return true;
+}
+
+/* ── 말하기: 여러 조각을 순서대로 이어 재생 ── */
+let _vq = [];        // 재생 대기열
+let _vplaying = false;
+function say(...keys){
+  if(!voiceOn() || !VP) return;
+  const list = keys.flat().filter(k => k && VP[k]);
+  if(!list.length) return;
+  _vq.push(...list);
+  if(!_vplaying) _vnext();
+}
+function sayNow(...keys){    // 지금 말하던 걸 끊고 바로
+  _vq = []; _vstop(); say(...keys);
+}
+function _vstop(){
+  if(window._va){ try{ window._va.pause(); }catch(e){} window._va = null; }
+  _vplaying = false;
+}
+function _vnext(){
+  const k = _vq.shift();
+  if(!k){ _vplaying = false; return; }
+  _vplaying = true;
+  try{
+    const a = new Audio("data:audio/mpeg;base64," + VP[k]);
+    window._va = a;
+    a.onended = _vnext;
+    a.onerror = _vnext;
+    a.play().catch(()=> _vnext());
+  }catch(e){ _vnext(); }
+}
+
+/* ── 숫자 → 멘트 키 ── */
+function vWeight(w){
+  if(w == null) return "bodyweight";
+  const k = "w" + String(w).replace(".", "_");
+  return VP && VP[k] ? k : null;
+}
+function vReps(n){ return (n >= 1 && n <= 30) ? "r" + n : null; }
+function vSet(n){ return (n >= 1 && n <= 6) ? "set" + n : null; }
+function vEx(id){ return "ex_" + id; }
+
+/* ═══ 마이크 명령 (8/5 대표 — 블루투스 이어폰 끼고 폰 안 보고 운동) ═══
+   "세트 끝" 하면 휴식으로, "다음" 하면 건너뛰기.
+   브라우저 내장 음성인식이라 따로 돈이 안 든다.
+   ⚠️ 아이폰 사파리는 화면이 꺼지면 마이크가 끊긴다 → 화면 켜둠(wakeLock)과 같이 써야 함. */
+const MIC_CMDS = [
+  { re: /세트\s*끝|셋트\s*끝|끝났|완료|다\s*했|오케이|오케바리/, act: "done"  },
+  { re: /다음|넘어가|스킵|건너/,                                    act: "next"  },
+  { re: /더\s*쉬|십오초|십오\s*초|더\s*쉴/,                        act: "rest+" },
+  { re: /시작|고고|가자/,                                          act: "start" },
+  { re: /무겁|힘들|버겁/,                                          act: "heavy" },
+  { re: /가벼|쉬웠|여유/,                                          act: "light" },
+];
+let MIC_R = null, MIC_WANT = false;
+
+function micSupported(){
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+function micOn(){ return localStorage.getItem("jayna_mic") === "1"; }
+
+function micStart(){
+  if(!micSupported() || !micOn()) return;
+  MIC_WANT = true;
+  if(MIC_R) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = new SR();
+  r.lang = "ko-KR";
+  r.continuous = true;
+  r.interimResults = false;
+  r.onresult = (e)=>{
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = (e.results[i][0].transcript || "").trim();
+      if(!t) continue;
+      micHandle(t);
+    }
+  };
+  // 브라우저가 조용하면 알아서 멈춘다 → 다시 켠다
+  r.onend = ()=>{ MIC_R = null; if(MIC_WANT) setTimeout(micStart, 400); };
+  r.onerror = (e)=>{
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      MIC_WANT = false; localStorage.setItem("jayna_mic","0");
+      toast("마이크 권한이 없어요. 설정에서 허용해주세요");
+    }
+  };
+  try{ r.start(); MIC_R = r; }catch(e){}
+}
+function micStop(){
+  MIC_WANT = false;
+  if(MIC_R){ try{ MIC_R.stop(); }catch(e){} MIC_R = null; }
+}
+function micHandle(text){
+  if(typeof CO === "undefined" || !CO) return;
+  const hit = MIC_CMDS.find(c => c.re.test(text));
+  if(!hit) return;
+  micFlash(text);
+  if(hit.act === "done"){
+    if(CO.phase === "work") coachDone();
+    else if(CO.phase === "ready") CO.t = 1;
+    else if(CO.phase === "move") coachMoved();
+  } else if(hit.act === "next"){
+    if(CO.phase === "rest") coachSkipRest();
+    else coachSkipEx();
+  } else if(hit.act === "rest+"){
+    if(CO.phase === "rest") coachAddRest();
+  } else if(hit.act === "start"){
+    if(CO.phase === "ready") CO.t = 1;
+    else if(CO.phase === "rest") coachSkipRest();
+    else if(CO.phase === "move") coachMoved();
+  } else if(hit.act === "heavy" || hit.act === "light"){
+    if(CO.phase === "rest") coachFeel(hit.act);
+  }
+}
+/* 알아들었다는 표시 — 화면 위에 잠깐 */
+function micFlash(t){
+  let el = document.getElementById("micFlash");
+  if(!el){
+    el = document.createElement("div"); el.id = "micFlash";
+    document.body.appendChild(el);
+  }
+  el.textContent = "🎤 " + t;
+  el.classList.add("on");
+  clearTimeout(window._micT);
+  window._micT = setTimeout(()=> el.classList.remove("on"), 1600);
+}
+
 function coachTick(){
+  // 코치 모드 진입 시 음성팩 준비 + 마이크 대기 (8/5)
+  if(voiceOn() && !VP) voiceLoad().then(ok=>{ if(ok) say("go"); });
+  if(micOn()) micStart();
   if(CO.timer) clearInterval(CO.timer);
   CO.timer = setInterval(()=>{
     if(!CO) return;
@@ -3661,12 +3967,24 @@ function coachTick(){
     if(CO.phase==="work" || CO.phase==="cardio"){ CO.t++; coachPaint(); return; }
     CO.t--;
     if(CO.t<=0){
-      if(CO.phase==="ready"){ CO.phase="work"; CO.t=0; beep(2); }
-      else if(CO.phase==="rest"){ CO.phase="ready"; CO.t=5; beep(1); }
-      else if(CO.phase==="move"){ CO.phase="ready"; CO.t=5; beep(1); }
+      if(CO.phase==="ready"){
+        CO.phase="work"; CO.t=0; beep(2);
+        // "3세트 · 40킬로 · 12번" 을 이어서 말한다 (8/5)
+        try{
+          const st = coachSet(), sets = coachSets();
+          if(st.kind === "warm") say("warmup", vWeight(st.w), vReps(st.reps));
+          else if(CO.si >= sets.length-1) say(vSet(CO.si+1), vWeight(st.w), vReps(st.reps), "last_set");
+          else say(vSet(CO.si+1), vWeight(st.w), vReps(st.reps), "go");
+        }catch(e){}
+      }
+      else if(CO.phase==="rest"){ CO.phase="ready"; CO.t=5; beep(1); say("rest_end"); }
+      else if(CO.phase==="move"){ CO.phase="ready"; CO.t=5; beep(1); say("moved"); }
       coachRender(); return;
     }
     if(CO.t<=3 && CO.phase!=="work") beep(0);
+    // 휴식 10초 전 알림 + 3·2·1 카운트 (8/5)
+    if(CO.phase==="rest" && CO.t===10) say("ten");
+    if(CO.t<=3 && CO.t>=1 && CO.phase!=="work" && CO.phase!=="cardio") say("cnt"+CO.t);
     coachPaint();
   }, 1000);
 }
@@ -3691,9 +4009,14 @@ function coachDone(){
   coachSaveDraft();
   const last = CO.si >= coachSets().length-1;
   CO.feel = null;   // 새 휴식마다 체감 선택 초기화 (8/4)
-  if(!last){ CO.si++; CO.phase="rest"; CO.t=e.rest||60; }
-  else if(CO.ei < CO.plan.exs.length-1){ CO.phase="move"; CO.t=20; }
-  else { CO.phase="cardio"; CO.t=0; }   // 근력 끝 → 유산소 (8/4 대표)
+  say("set_done");
+  if(!last){ CO.si++; CO.phase="rest"; CO.t=e.rest||60; say("rest_start"); }
+  else if(CO.ei < CO.plan.exs.length-1){
+    CO.phase="move"; CO.t=20;
+    const nx = CO.plan.exs[CO.ei+1];
+    say("move", nx ? vEx(nx.id) : null);
+  }
+  else { CO.phase="cardio"; CO.t=0; say("cardio"); }   // 근력 끝 → 유산소 (8/4 대표)
   coachRender();
 }
 /* 이 운동 건너뛰기 (8/4 대표) — 기구가 사용 중이거나 컨디션이 안 될 때.
@@ -3862,6 +4185,7 @@ function coachFeel(dir){
   adjustFrom(coachSets(), CO.si-1 < 0 ? 0 : CO.si-1, dir, EX[e.id]);
   const nx = coachSets()[CO.si];
   const hasW = nx && nx.w!=null;
+  say(dir==="ok" ? "ok_keep" : dir==="heavy" ? "heavy_down" : "light_up");
   toast(dir==="ok"    ? "딱 좋은 무게예요! 그대로 갑니다 👍"
       : dir==="heavy" ? (hasW ? "다음 세트 "+nx.w+"kg로 낮췄어요 👍" : "다음 세트는 횟수를 조금 줄여도 돼요 👍")
       :                 (hasW ? "다음 세트 "+nx.w+"kg로 올렸어요 💪" : "좋아요! 다음 세트도 힘내요 💪"));
@@ -4014,6 +4338,7 @@ function coachCardioSkip(){
 }
 
 function coachDoneHTML(){
+  try{ say("done"); }catch(e){}
   let sets=0, vol=0;
   for(const id in CO.log) CO.log[id].filter(Boolean).forEach(s=>{ sets++; vol += (s.w||0)*(s.reps||0); });
   return `<div class="co-wrap done">
