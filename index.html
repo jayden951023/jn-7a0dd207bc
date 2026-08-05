@@ -137,7 +137,18 @@
 /* 코치 모드 — 세로 전체화면 (8/4 대표) */
 body.coach-on > .app, body.coach-on > nav, body.coach-on .tabbar, body.coach-on #timerWrap { display:none !important; }
 #coachView{ position:fixed; inset:0; z-index:9999; background:linear-gradient(180deg,#0b1520 0%,#0a1118 100%); overflow:hidden; }
-.co-wrap{ height:100%; display:flex; flex-direction:column; align-items:center; padding:16px 18px calc(20px + env(safe-area-inset-bottom)); text-align:center; }
+/* 8/5 — 짧은 화면(SE 568px 등)에서 마지막 버튼이 잘리던 문제.
+   내용은 스크롤되게 두고, 코치 화면 본문 영역이 남는 공간만 쓰게 한다.
+   유산소 화면처럼 버튼이 3개인 단계도 전부 화면 안에 들어온다. */
+.co-body{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+@media(max-height:680px){
+  .co-body{ justify-content:flex-start; padding-top:2px; }
+  .co-row{ margin-top:4px; }
+  .co-row + .co-btn, .co-btn.ghost{ margin-top:4px; padding:10px; font-size:13.5px; }
+}
+.co-wrap{ min-height:100%; max-height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  display:flex; flex-direction:column; align-items:center;
+  padding:16px 18px calc(24px + env(safe-area-inset-bottom)); text-align:center; }
 .co-top{ width:100%; display:flex; align-items:center; gap:10px; }
 .co-x{ width:38px; height:38px; border-radius:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); color:#cfe3f5; font-size:17px; cursor:pointer; }
 .co-prog{ flex:1; font-size:13px; color:#8fa8bd; letter-spacing:.3px; line-height:1.4; }
@@ -271,6 +282,58 @@ body.coach-on > .app, body.coach-on > nav, body.coach-on .tabbar, body.coach-on 
 @media(max-height:700px){
   .co-count{ font-size:62px; } .co-machine{ height:88px; } .co-exname{ font-size:22px; }
   .co-target b{ font-size:33px; }
+}
+/* 8/5 — 664~760px 짜리 폰(아이폰 12·SE, 픽셀5, 갤럭시 S9)에서
+   버튼 줄이 늘어나며 '바로 시작'이 화면 밖으로 밀리던 문제. 여백을 조인다. */
+/* 8/5 — 아이폰 SE(568px)처럼 아주 짧은 화면: 사진을 숨기고 최대한 조인다.
+   운동 사진보다 [세트 완료] 버튼에 손이 닿는 게 우선. */
+/* 8/5 — 480px 이하 초소형: 남길 건 숫자와 버튼뿐 */
+@media(max-height:520px){
+  .co-guide, .co-sub, .co-eq, .co-prog .co-date{ display:none; }
+  .co-count{ font-size:30px; margin:2px 0; }
+  .co-count.sm{ font-size:20px; }
+  .co-phase{ font-size:13px; }
+  .co-exname{ font-size:15px; }
+  .co-target{ font-size:15px; } .co-target b{ font-size:20px; }
+  .co-btn{ margin-top:4px; padding:9px; font-size:14px; }
+  .co-btnrow{ margin-top:3px; }
+  .co-btnrow button{ font-size:10.5px; padding:5px 7px; }
+  .co-movename{ font-size:16px; }
+  .co-wrap{ padding:8px 12px calc(10px + env(safe-area-inset-bottom)); }
+}
+@media(max-height:620px){
+  .co-machine, .co-photo-wrap{ display:none; }
+  .co-top{ margin-bottom:2px; }
+  .co-btnrow{ gap:5px; margin-top:4px; }
+  .co-btnrow button{ font-size:11px; padding:6px 8px; }
+  .co-body{ gap:3px; }
+  .co-btn{ margin-top:5px; padding:11px; font-size:15px; }
+  .co-count{ font-size:38px; }
+  .co-count.sm{ font-size:24px; }
+  .co-exname{ font-size:17px; }
+  .co-target{ font-size:17px; }
+  .co-target b{ font-size:23px; }
+  .co-guide, .co-sub{ font-size:11.5px; }
+  .co-feel{ gap:5px; margin-top:3px; }
+  .co-feel button{ font-size:11.5px; padding:7px 9px; }
+  .co-feel span{ font-size:11px; }
+  .co-row{ gap:6px; }
+  .co-eq, .co-knee{ font-size:11.5px; }
+  .co-adj{ margin:4px 0; }
+}
+@media(max-height:760px){
+  .co-machine{ width:min(56vw,190px); height:74px; margin:5px 0 2px; }
+  .co-btnrow{ gap:6px; margin-top:6px; }
+  .co-btnrow button{ font-size:11.5px; padding:7px 9px; }
+  .co-body{ gap:5px; }
+  .co-btn{ margin-top:7px; padding:13px; }
+  .co-count{ font-size:50px; }
+  .co-count.sm{ font-size:30px; }
+  .co-exname{ font-size:19px; }
+  .co-target{ font-size:20px; }
+  .co-target b{ font-size:28px; }
+  .co-guide{ font-size:12.5px; }
+  .co-photo, .co-photo-wrap img{ max-height:96px; }
 }
 
 
