@@ -3954,10 +3954,16 @@ async function vdbDel(id){
 }
 
 /* ── 음성팩 준비: 저장된 게 있으면 바로, 없으면 내려받기 ── */
+/* 팩에 들어 있어야 할 멘트 수 (8/5)
+   종목이 늘면 이 숫자를 올린다 → 폰에 저장된 옛 팩을 자동으로 새로 받는다. */
+const VOICE_MIN = 284;
+
 async function voiceLoad(id, onProgress){
   id = id || voiceId();
-  if(VP && VP_ID === id) return true;
+  if(VP && VP_ID === id && Object.keys(VP).length >= VOICE_MIN) return true;
   let pack = await vdbGet(id);
+  // 저장된 팩이 옛 버전이면(멘트가 모자라면) 버리고 새로 받는다
+  if(pack && Object.keys(pack).length < VOICE_MIN){ pack = null; await vdbDel(id); }
   if(!pack){
     if(onProgress) onProgress(0);
     try{
