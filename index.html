@@ -2223,7 +2223,38 @@ if(!S.profiles){
 }
 // 기구 자동복구: equip에 유효 기구가 하나도 없으면(옛 버전이 오염/삭제) 전체(62)로 복원
 try{ for(const _k in S.profiles){ const _p=S.profiles[_k]; if(!Array.isArray(_p.equip) || !_p.equip.some(id=>GYM_BY[id])) _p.equip=[...DEFAULT_EQUIP]; } DB.save(S); }catch(e){}
-const P = ()=> S.profiles[S.current] || S.profiles[Object.keys(S.profiles)[0]];
+/* 프로필을 꺼낼 때 형태를 보장한다 (8/5)
+   저장이 중간에 끊기거나 옛 형식이 남아 있어도 화면이 죽지 않게.
+   history/done/logdays 를 읽는 곳이 앱 곳곳이라 여기 한 곳에서 막는 게 확실하다. */
+function _fixProfile(p){
+  if(!p || typeof p !== "object") return p;
+  if(!Array.isArray(p.logdays)) p.logdays = [];
+  if(!Array.isArray(p.cardio))  p.cardio  = [];
+  if(!p.readiness || typeof p.readiness !== "object" || Array.isArray(p.readiness)) p.readiness = {};
+  if(!p.done || typeof p.done !== "object" || Array.isArray(p.done)) p.done = {};
+  if(!p.history || typeof p.history !== "object" || Array.isArray(p.history)) p.history = {};
+  else {
+    // 기록 형태 보정 — 캐시 없이 매번 확인한다.
+    //   한 번만 하도록 했더니, 운동 중에 데이터가 깨지는 경우를 놓쳤다 (8/5).
+    //   종목 수십 개 얕은 검사라 렌더마다 돌아도 부담 없다.
+    for(const id in p.history){
+      const arr = p.history[id];
+      if(!Array.isArray(arr)){ delete p.history[id]; continue; }
+      let need = false;
+      for(const h of arr){ if(!h || typeof h !== "object" || !Array.isArray(h.sets)){ need = true; break; } }
+      if(!need) continue;
+      const fixed = arr
+        .filter(h => h && typeof h === "object")
+        .map(h => Array.isArray(h.sets) ? h
+             : Object.assign({}, h, {sets: (h.w!=null || h.reps!=null) ? [{w:h.w, reps:h.reps}] : []}));
+      if(fixed.length) p.history[id] = fixed; else delete p.history[id];
+    }
+  }
+  if(typeof p.name !== "string" || !p.name.trim()) p.name = "나";
+  if(typeof p.goal !== "string") p.goal = "";
+  return p;
+}
+const P = ()=> _fixProfile(S.profiles[S.current] || S.profiles[Object.keys(S.profiles)[0]]);
 // 앱 나가기/백그라운드/포커스아웃 시 진행상황 강제 저장 (나갔다 와도 초기화 방지 — 대표 지시)
 function _saveDraftNow(){ try{
   if(typeof CO!=="undefined" && CO && CO.log && typeof coachSaveDraft==="function"){ coachSaveDraft(); }
