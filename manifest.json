@@ -1,6 +1,6 @@
 {
-  "name": "JAYNA PT · AI 트레이너",
-  "short_name": "JAYNA PT",
+  "name": "폰pt · AI 트레이너",
+  "short_name": "폰pt",
   "description": "실제 헬스장 기구로 오늘 뭘 몇 kg 할지 정해주는 AI 트레이너",
   "start_url": "./",
   "scope": "./",
