@@ -5205,7 +5205,7 @@ async function _lkTry(){
     inp.value = ""; inp.focus();
   }
 }
-(function _lkInit(){
+(function _lkInit(){ if(typeof _lkOpen==="function"){ _lkOpen(); } return; /* 암호 잠금 제거 (대표 지시) */
   let saved = null;
   try{ saved = localStorage.getItem(_LK_KEY); }catch(e){}
   if(saved === _LK_HASH){ _lkOpen(); return; }   // 이미 통과한 폰
