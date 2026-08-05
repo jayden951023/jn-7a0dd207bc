@@ -2430,15 +2430,20 @@ function saveCardio(){
 /* ---------- 점진적 과부하 엔진 ---------- */
 // 지난 기록으로 오늘 추천무게 계산
 function recommend(exId){
-  const ex = EX[exId]; const hist = (P().history[exId]||[]);
+  const ex = EX[exId];
+  // 기록이 반쯤 저장되다 만 경우에도 앱이 죽지 않게 (8/5) — 배열이 아니면 없는 셈 친다
+  const hraw = P().history ? P().history[exId] : null;
+  const hist = Array.isArray(hraw) ? hraw.filter(x => x && typeof x === "object") : [];
   if(!ex.start && ex.inc===0) return {w:null, reps:ex.rep[1], note:"맨몸 · 반복수 목표"};
   if(hist.length===0) return {w: ex.start, reps: ex.rep[0], note:"첫 세션 · 가벼운 무게로 폼부터"};
-  const last = hist[hist.length-1];
-  const sets = last.sets.filter(s=>s.w!=null||s.reps!=null);
+  const last = hist[hist.length-1] || {};
+  const rawSets = Array.isArray(last.sets) ? last.sets
+                : (last.w!=null || last.reps!=null) ? [last] : [];   // 낱개 기록도 받아들인다
+  const sets = rawSets.filter(s=> s && (s.w!=null||s.reps!=null));
   if(sets.length===0) return {w:ex.start, reps:ex.rep[0], note:"기록 없음"};
   const w = Math.max(...sets.map(s=>+s.w||0));
   // 지난 세션에 '무거웠다'를 눌렀으면 올리지 않는다 (8/4 대표)
-  const lastFeel = (last.planSets||[]).filter(p=>p.feel).map(p=>p.feel);
+  const lastFeel = (Array.isArray(last.planSets)?last.planSets:[]).filter(p=>p&&p.feel).map(p=>p.feel);
   const feltHeavy = lastFeel.filter(f=>f==="heavy").length >= 1;
   const feltLight = lastFeel.length>0 && lastFeel.every(f=>f==="light");
   if(feltHeavy) return {w: w, reps: ex.rep[0], note:"지난번 무겁다고 하셔서 같은 무게로 한 번 더 💪"};
@@ -2502,7 +2507,7 @@ function adjustFrom(planSets, fromIdx, dir, ex){
 /* 주차 인덱스 — 첫 기록일 기준 몇 주째인가 (종목 로테이션용) */
 function weekIndex(){
   const days = P().logdays;
-  if(!days || !days.length) return 0;
+  if(!Array.isArray(days) || !days.length) return 0;
   const first = new Date(days[0] + "T00:00:00+09:00");
   const diff = Math.floor((nowKST() - first) / 86400000);
   return Math.max(0, Math.floor(diff / 7));
@@ -2667,7 +2672,8 @@ const _Q6 = {
     return (EX[a].type==="comp"?0:1) - (EX[b].type==="comp"?0:1);
   }).slice(0,6);
   // 오토레귤레이션: 오늘 컨디션
-  const r = dayOffset ? null : P().readiness[todayKey()];   // 내일 미리보기엔 오늘 컨디션 반영 안 함
+  // 내일 미리보기엔 오늘 컨디션 반영 안 함 · readiness 가 깨져 있어도 견딘다 (8/5)
+  const r = dayOffset ? null : ((P().readiness && typeof P().readiness === "object") ? P().readiness[todayKey()] : null);
   let setMod = 0, wMod = 1, coach="";
   if(r){
     const score = (r.sleep+r.energy+(6-r.soreness)+(6-r.stress))/4; // 1~5
@@ -2778,7 +2784,7 @@ function timeBudget(){ const v = P() && P().timeBudget; return (v==null? 60 : +v
 // 6주 주기 · 매 6주차 쉬어가는 주 (첫 기록일 기준)
 function isDeloadWeek(){
   const days = P().logdays;
-  if(!days.length) return false;
+  if(!Array.isArray(days) || !days.length) return false;
   const first = new Date(days[0]+"T00:00:00");
   const wk = Math.floor((nowKST()-first)/(7*86400000));
   return wk>0 && (wk%6===5);
@@ -3749,6 +3755,35 @@ function updateStreak(){ $("#streakPill").textContent="🔥 "+streakCount()+"일
    예전엔 기구를 "바벨","덤벨" 같은 이름으로 저장했는데 지금은 id(ip_legpress)를 쓴다.
    그대로 두면 쓸 수 있는 기구가 0개가 되어 '0종목'이 뜨고 운동이 시작되지 않는다.
    → 앱을 열 때 형식이 안 맞으면 전체 기구로 되돌린다. (기록은 건드리지 않음) */
+/* 저장된 데이터의 형태가 깨졌으면 조용히 고친다 (8/5)
+   앱 강제종료·저장소 꽉참 등으로 중간까지만 저장되는 경우가 실제로 있다. */
+function fixShape(){
+  try{
+    for(const k in S.profiles){
+      const p = S.profiles[k];
+      if(!p || typeof p !== "object") continue;
+      if(!Array.isArray(p.logdays)) p.logdays = [];
+      if(!p.history || typeof p.history !== "object" || Array.isArray(p.history)) p.history = {};
+      for(const id in p.history){
+        if(!Array.isArray(p.history[id])){ delete p.history[id]; continue; }
+        // sets 가 없는 기록은 화면 곳곳에서 h.sets.filter 로 터진다 → 정상 형태로 맞춰준다 (8/5)
+        p.history[id] = p.history[id]
+          .filter(h => h && typeof h === "object")
+          .map(h => Array.isArray(h.sets) ? h
+               : Object.assign({}, h, {sets: (h.w!=null||h.reps!=null) ? [{w:h.w, reps:h.reps}] : []}));
+        if(!p.history[id].length) delete p.history[id];
+      }
+      if(!p.done || typeof p.done !== "object" || Array.isArray(p.done)) p.done = {};
+      for(const d in p.done){ if(!p.done[d] || typeof p.done[d] !== "object") delete p.done[d]; }
+      if(!p.readiness || typeof p.readiness !== "object" || Array.isArray(p.readiness)) p.readiness = {};
+      if(!Array.isArray(p.cardio)) p.cardio = [];
+      if(typeof p.name !== "string" || !p.name.trim()) p.name = "나";
+      if(typeof p.goal !== "string") p.goal = "";
+    }
+    persist();
+  }catch(e){ console.log("[정리] 실패", e); }
+}
+
 function migrateEquip(){
   try{
     const ids = new Set(GYM.map(m => m.id));
@@ -3773,6 +3808,7 @@ function migrateEquip(){
 }
 
 function boot(){
+  fixShape();
   migrateEquip();
   if(!S.current){ $("#app").classList.add("hidden"); $("#onboard").classList.remove("hidden"); renderProfiles(); return; }
   $("#onboard").classList.add("hidden"); $("#app").classList.remove("hidden");
